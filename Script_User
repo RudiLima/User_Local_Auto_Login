@@ -1,0 +1,37 @@
+# ==== CONFIGURAÇÕES ====
+$usuario = "SEU USUARIO"   # Nome do usuário local
+$senha = "SUA SENHA"           # Senha do usuário
+$regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+
+# ==== CRIA OU ATUALIZA USUÁRIO LOCAL ====
+if (Get-LocalUser -Name $usuario -ErrorAction SilentlyContinue) {
+    Write-Host "Usuário '$usuario' já existe. Atualizando configurações..."
+    net user $usuario $senha
+} else {
+    Write-Host "Criando usuário local: $usuario"
+    net user $usuario $senha /add
+}
+
+# Garante que está no grupo "Users"
+net localgroup "Users" $usuario /add
+
+# Define que a senha nunca expira e que o usuário não pode alterá-la
+wmic useraccount where "name='$usuario'" set PasswordExpires=FALSE
+net user $usuario /passwordchg:no
+
+# ==== GARANTE QUE O CAMINHO DO REGISTRO EXISTE ====
+if (-not (Test-Path $regPath)) {
+    Write-Host "Criando caminho de registro: $regPath"
+    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -Name "Winlogon" -Force | Out-Null
+}
+
+# ==== DEFINE OU SUBSTITUI VALORES DO REGISTRO PARA LOGON AUTOMÁTICO ====
+Set-ItemProperty -Path $regPath -Name "AutoAdminLogon" -Value "1" -Type String
+Set-ItemProperty -Path $regPath -Name "DefaultUserName" -Value $usuario -Type String
+Set-ItemProperty -Path $regPath -Name "DefaultPassword" -Value $senha -Type String
+
+# Define o domínio local (nome do computador)
+$computerName = $env:COMPUTERNAME
+Set-ItemProperty -Path $regPath -Name "DefaultDomainName" -Value $computerName -Type String
+
+Write-Host "`n✅ Usuário validado/criado e logon automático configurado com sucesso."
